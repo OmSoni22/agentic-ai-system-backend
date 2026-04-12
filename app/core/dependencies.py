@@ -13,8 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
 from app.core.db.session import AsyncSessionLocal
-from app.core.service_factory import ServiceFactory
-
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
@@ -32,15 +30,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
-
-
-async def get_service_factory(session: AsyncSession = Depends(get_db)) -> ServiceFactory:
-    """
-    Dependency to get the Service Factory.
-    Initialized with the current session.
-    """
-    return ServiceFactory(session)
-
 
 class Pagination:
     """Pagination parameters for list endpoints."""

@@ -11,7 +11,6 @@ import rich
 from sqlalchemy import text
 
 from app.core.db.session import AsyncSessionLocal
-from app.core.cache.redis import redis_client
 from app.core.config.settings import settings
 
 router = APIRouter()
@@ -43,18 +42,6 @@ async def check_database() -> bool:
         return False
 
 
-async def check_redis() -> bool:
-    """Check Redis connectivity."""
-    try:
-        if not settings.redis_enabled or not redis_client:
-            return True  # Not enabled, so "healthy"
-        await redis_client.ping()
-        return True
-    except Exception as e:
-        rich.print("Redis connection failed", e)
-        return False
-
-
 @router.get("/health", response_model=HealthStatus)
 async def health_check():
     """
@@ -66,8 +53,7 @@ async def health_check():
         version="1.0.0",  # TODO: Get from package or env
         environment="development" if settings.debug else "production",
         details={
-            "app_name": settings.app_name,
-            "redis_enabled": settings.redis_enabled
+            "app_name": settings.app_name
         }
     )
 
@@ -89,23 +75,20 @@ async def readiness_check():
     Checks database and Redis connectivity.
     """
     # Run checks concurrently
-    db_check, redis_check = await asyncio.gather(
+    db_check, = await asyncio.gather(
         check_database(),
-        check_redis(),
         return_exceptions=True
     )
     
     # Handle exceptions as failures
     db_healthy = db_check if isinstance(db_check, bool) else False
-    redis_healthy = redis_check if isinstance(redis_check, bool) else False
     
-    all_ready = db_healthy and redis_healthy
+    all_ready = db_healthy
     
     response = ReadinessStatus(
         ready=all_ready,
         checks={
-            "database": db_healthy,
-            "redis": redis_healthy if settings.redis_enabled else True
+            "database": db_healthy
         }
     )
     
