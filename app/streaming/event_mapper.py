@@ -4,7 +4,7 @@ from __future__ import annotations
 
 # Maps internal event type → SSE event name
 EVENT_TYPE_MAP: dict[str, str] = {
-    "session_info": "session_info",
+    "thread_info": "thread_info",
     "content_block_start": "content_block_start",
     "thinking_delta": "content_block_delta",
     "text_delta": "content_block_delta",
