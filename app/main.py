@@ -1,55 +1,49 @@
-from fastapi import FastAPI
+"""Agentic AI System — FastAPI application entrypoint."""
+
+import logging
+
 from contextlib import asynccontextmanager
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.router import api_router
-from app.api.health import router as health_router
-from app.core.logging.middleware import logging_middleware
-from app.core.config.settings import settings
-from app.core.config.env import validate_config
-from app.core.cache.redis import redis_client
-from app.core.db.session import close_db
-from app.bootstrap import bootstrap, shutdown
-from app.core.exceptions.base import AppException
-from app.core.exceptions.handlers import (
-    app_exception_handler,
-    validation_exception_handler,
-    sqlalchemy_exception_handler,
-    generic_exception_handler,
+from app.bootstrap import create_components, shutdown_components
+from app.config.settings import settings
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: startup and shutdown tasks.
+    """Application lifespan — startup and shutdown."""
+    logger.info("Starting %s...", settings.app_name)
 
-    - Validate configuration
-    - Initialize DB (fails startup on error)
-    - Initialize Redis (optional)
-    - On shutdown: close Redis and dispose DB engine
-    """
-    # Validate environment configuration
-    validate_config()
+    # Initialize all components (DB + agent stack) and attach to app.state
+    components = await create_components()
+    for name, component in components.items():
+        setattr(app.state, name, component)
 
-    # Run centralized bootstrap (DB, Redis, etc.)
-    await bootstrap()
+    logger.info("%s is ready", settings.app_name)
+    logger.info("Tools: %s", [t.name for t in components["tool_registry"].get_all()])
+    logger.info("Database: connected (PostgreSQL)")
 
     try:
         yield
     finally:
-        # Centralized shutdown
-        try:
-            await shutdown()
-        except Exception:
-            pass
+        logger.info("Shutting down %s...", settings.app_name)
+        await shutdown_components()
 
 
-# Create FastAPI app with lifespan manager
+# Create FastAPI app
 app = FastAPI(
     title=settings.app_name,
-    description="Production-grade FastAPI application with SOLID principles, MVC, and enterprise features",
+    description="Production-grade Agentic AI System with ReAct loop, tool calling, SSE streaming, and persistent threads",
     version="1.0.0",
     debug=settings.debug,
     docs_url="/api/docs",
@@ -58,43 +52,28 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
-# Configure CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Request-ID"],
 )
 
-
-# Register logging middleware
-app.middleware("http")(logging_middleware)
-
-
-# Register exception handlers
-app.add_exception_handler(AppException, app_exception_handler)
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
-app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
-app.add_exception_handler(Exception, generic_exception_handler)
-
-
-# Include routers
-app.include_router(health_router, prefix="/api", tags=["Health"])
+# Routes
 app.include_router(api_router, prefix="/api/v1")
 
 
-# Root endpoint
 @app.get("/", tags=["Root"])
 async def root():
     """Root endpoint with API information."""
     return {
-        "message": f"Welcome to {settings.app_name}",
+        "name": settings.app_name,
         "version": "1.0.0",
+        "description": "Agentic AI System with persistent threads, ReAct loop, and SSE streaming",
         "docs": "/api/docs",
-        "health": "/api/health",
+        "threads": "/api/v1/threads",
     }
 
 

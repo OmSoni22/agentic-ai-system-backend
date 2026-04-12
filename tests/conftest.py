@@ -1,89 +1,55 @@
-"""
-Pytest configuration and shared fixtures.
-
-This module provides common fixtures for testing the FastAPI application.
-"""
+"""Pytest configuration and fixtures for the agentic AI system tests."""
 
 import pytest
-import asyncio
-from typing import AsyncGenerator, Generator
-from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.main import app
-from app.core.db.base import Base
-from app.core.dependencies import get_db
-
-
-# Test database URL (in-memory SQLite)
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-
-
-@pytest.fixture(scope="session")
-def event_loop() -> Generator:
-    """Create event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="function")
-async def test_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Create a test database session.
-    
-    Each test gets a fresh database with all tables created.
-    """
-    # Create test engine
-    engine = create_async_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-    # Create session
-    async_session_maker = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-    
-    async with async_session_maker() as session:
-        yield session
-    
-    # Drop all tables after test
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    
-    await engine.dispose()
-
-
-@pytest.fixture(scope="function")
-def client(test_db: AsyncSession) -> TestClient:
-    """
-    Create a test client with dependency overrides.
-    
-    Uses the test database instead of the real one.
-    """
-    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        yield test_db
-    
-    app.dependency_overrides[get_db] = override_get_db
-    
-    with TestClient(app) as test_client:
-        yield test_client
-    
-    app.dependency_overrides.clear()
+from app.tools.registry import ToolRegistry
+from app.tools.calculator import CalculatorTool
+from app.tools.file_reader import FileReaderTool
+from app.agent.context_assembler import ContextAssembler
+from app.agent.prompt_builder import PromptBuilder
+from app.threads.models import Message
 
 
 @pytest.fixture
-def sample_user_data() -> dict:
-    """Sample user data for testing."""
-    return {
-        "name": "Test User",
-        "description": "A test user for unit testing"
+def tool_registry():
+    """Fresh ToolRegistry with built-in tools registered."""
+    registry = ToolRegistry()
+    registry.register(CalculatorTool())
+    registry.register(FileReaderTool())
+    return registry
+
+
+@pytest.fixture
+def empty_registry():
+    """Empty ToolRegistry with no tools."""
+    return ToolRegistry()
+
+
+@pytest.fixture
+def context_assembler(tool_registry):
+    """ContextAssembler with tools registered."""
+    return ContextAssembler(tool_registry)
+
+
+@pytest.fixture
+def prompt_builder():
+    """PromptBuilder instance."""
+    return PromptBuilder()
+
+
+@pytest.fixture
+def sample_messages():
+    """Sample Message objects for testing (mimicking DB rows)."""
+    return [
+        Message(
+            id="msg-1",
+            thread_id="thread-1",
+            role="human",
+            content="Hello",
+        ),
+        Message(
+            id="msg-2",
+            thread_id="thread-1",
+            role="ai",
+            content="Hi there!",
+        ),
+    ]

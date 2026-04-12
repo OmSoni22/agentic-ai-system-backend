@@ -1,209 +1,153 @@
-# FastAPI Enterprise Structure
+# Agentic AI System — Backend
 
-Production-grade FastAPI application with **SOLID principles**, **MVC architecture**, and **enterprise features**.
+Production-grade single-agent system with **ReAct loop**, **tool calling**, and **SSE streaming**.
 
-## 🚀 Features
+Built with **LangChain + Anthropic Claude + FastAPI**, following **SOLID principles** and designed for future multi-agent extension.
 
-- ✅ **SOLID & MVC** - Clean architecture with separation of concerns
-- ✅ **Async PostgreSQL** - SQLAlchemy 2.0 with async support
-- ✅ **Redis Caching** - Optional Redis integration with decorators
-- ✅ **Advanced Logging** - JSON logs with rotation, request ID tracking, queryable API
-- ✅ **Error Handling** - Global exception handlers with structured responses
-- ✅ **Dependency Injection** - Centralized dependencies for testability
-- ✅ **Health Checks** - Liveness/readiness probes for K8s/Docker
-- ✅ **CORS** - Configured CORS middleware
-- ✅ **OpenAPI** - Auto-generated interactive docs
-- ✅ **Testing** - Pytest with async support and fixtures
-- ✅ **Alembic Ready** - Prepared for database migrations
+## Architecture
 
-## 📁 Project Structure
+```
+User Query → Context Assembly → ReAct Loop → SSE Stream → UI
+```
+
+- **Context Assembly**: System prompt + rules + tool specs + chat history
+- **ReAct Loop**: Think → Decide → Act → Observe → Repeat
+- **SSE Stream**: Typed events (thinking, text, tool calls) pushed in real time
+
+## Project Structure
 
 ```
 app/
-├── api/                 # API routes
-│   ├── health.py       # Health check endpoints
-│   └── router.py       # Main API router
-├── core/               # Core infrastructure
-│   ├── cache/         # Redis caching
-│   ├── config/        # Configuration & validation
-│   ├── db/            # Database setup
-│   ├── decorators/    # Reusable decorators
-│   ├── exceptions/    # Custom exceptions & handlers
-│   └── logging/       # Logging system
-├── modules/           # Business modules
-│   └── user/          # Example user module
-│       ├── services/  # Business logic
-│       ├── *_model.py   # SQLAlchemy models
-│       ├── *_schema.py  # Pydantic schemas
-│       ├── *_repository.py # Data access
-│       └── *_routes.py  # API routes
-├── bootstrap.py       # App initialization
-└── main.py           # Application entry point
-tests/                # Test suite
+├── config/
+│   ├── settings.py           # Environment config (Pydantic)
+│   ├── system_prompt.txt     # Agent identity + behavior
+│   └── rules.txt             # Hard constraints
+├── agent/
+│   ├── runner.py             # AgentRunner — ReAct loop orchestrator
+│   ├── context_assembler.py  # Builds full context per turn
+│   └── prompt_builder.py     # Formats context → LangChain messages
+├── tools/
+│   ├── registry.py           # ToolRegistry — single source of truth
+│   ├── calculator.py         # Math expression evaluator
+│   └── file_reader.py        # Local file reader
+├── streaming/
+│   ├── sse_handler.py        # Formats events → SSE wire format
+│   └── event_mapper.py       # Maps internal events → SSE event names
+├── session/
+│   ├── session_store.py      # In-memory session store
+│   └── models.py             # Session, Message, ToolResult
+├── api/
+│   ├── stream_routes.py      # GET /stream SSE endpoint
+│   └── router.py             # Central API router
+├── bootstrap.py              # Component initialization + DI wiring
+└── main.py                   # FastAPI app entrypoint
 ```
 
-## 🛠️ Setup
+## Setup
 
 ### 1. Install Dependencies
 
 ```bash
-# Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # macOS/Linux
 
-# Install packages
 pip install -r requirements.txt
 ```
 
 ### 2. Configure Environment
 
 ```bash
-# Copy example env file
-cp .env.example .env
-
-# Edit .env with your settings
+copy .env.example .env
+# Edit .env — set your ANTHROPIC_API_KEY
 ```
 
-### 3. Setup Database
-
-**Option A: PostgreSQL**
-```bash
-# Start PostgreSQL, then run migrations
-alembic upgrade head
-```
-
-**Option B: SQLite (Development)**
-```bash
-# Update .env:
-DATABASE_URL=sqlite+aiosqlite:///./app.db
-
-# Run migrations
-alembic upgrade head
-```
-
-### 4. Run Application
-
-```bash
-# Development mode with auto-reload
-uvicorn app.main:app --reload
-
-# Production mode
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-## 📚 API Documentation
-
-Once running, visit:
-- **Interactive Docs**: http://localhost:8000/api/docs
-- **ReDoc**: http://localhost:8000/api/redoc
-- **OpenAPI JSON**: http://localhost:8000/api/openapi.json
-
-## 🔍 Key Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | API information |
-| `/api/health` | GET | Health check with version info |
-| `/api/health/liveness` | GET | K8s liveness probe |
-| `/api/health/readiness` | GET | K8s readiness probe (checks DB/Redis) |
-| `/api/v1/users` | GET | List all users |
-| `/api/v1/users` | POST | Create new user |
-| `/api/v1/logs` | GET | Query logs with filters |
-| `/api/v1/logs/stats` | GET | Log file statistics |
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app --cov-report=html
-
-# Run specific test types
-pytest -m unit          # Unit tests only
-pytest -m integration   # Integration tests only
-
-# Run specific file
-pytest tests/test_user_service.py
-```
-
-## 📋 Database Migrations (Alembic)
-
-```bash
-# Initialize Alembic (already done)
-alembic init alembic
-
-# Create migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
-alembic upgrade head
-
-# Rollback
-alembic downgrade -1
-```
-
-## 🔧 Configuration
-
-Environment variables in `.env`:
+**Required env vars:**
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `APP_NAME` | Application name | FastAPI-Pro |
-| `DEBUG` | Debug mode | false |
-| `DATABASE_URL` | Database connection string | Required |
-| `REDIS_ENABLED` | Enable Redis caching | false |
-| `REDIS_URL` | Redis connection string | - |
-| `LOG_LEVEL` | Logging level | INFO |
-| `LOG_DIR` | Log directory | logs |
+| `ANTHROPIC_API_KEY` | Your Anthropic API key | Required |
+| `MODEL_NAME` | Claude model to use | `claude-sonnet-4-6` |
+| `MAX_TOKENS` | Max tokens per response | `4096` |
+| `MAX_ITERATIONS` | ReAct loop iteration limit | `10` |
+| `MAX_EXECUTION_TIME` | Max session time (seconds) | `60` |
+| `DEBUG` | Enable debug mode + auto-reload | `false` |
 
-## 🏗️ Architecture Patterns
+### 3. Run
 
-### Repository Pattern
-Data access is abstracted through repositories.
-
-### Service Layer
-Business logic is encapsulated in services.
-
-### Dependency Injection
-Dependencies are injected via FastAPI's `Depends()`.
-
-### Custom Exceptions
-Structured exceptions with automatic error responses.
-
-## 📊 Logging
-
-- **Request ID Tracking** - Every request gets unique ID
-- **Performance Metrics** - Response times logged
-- **JSON Format** - Machine-readable logs
-- **Log Rotation** - Daily rotation with 30-day retention
-- **Query API** - Search logs via `/api/v1/logs`
-
-## 🛡️ Error Handling
-
-All errors return consistent JSON:
-
-```json
-{
-  "error": true,
-  "message": "Error description",
-  "details": {},
-  "path": "/api/v1/endpoint"
-}
+```bash
+uvicorn app.main:app --reload
 ```
 
-## 🤖 Created With AI
+Visit: http://localhost:8000/api/docs
 
-This project was created with the assistance of various AI tools and large language models (LLMs).
+### 4. Test the Stream
 
-## 📝 License
+```
+curl "http://localhost:8000/api/v1/stream?query=What+is+2+plus+2"
+```
 
-MIT License
+## SSE Event Types
 
-## 🤝 Contributing
+| Event | Description |
+|-------|-------------|
+| `session_info` | Session ID for the conversation |
+| `content_block_start` | LLM begins a new block (text/thinking) |
+| `content_block_delta` | Streaming token (text_delta, thinking_delta) |
+| `content_block_stop` | Block complete |
+| `tool_execution` | Tool is being called |
+| `tool_result` | Tool returned a result |
+| `message_delta` | Turn complete (end_turn / max_iterations) |
+| `message_stop` | Stream ends — close connection |
 
-1. Fork the repository
-2. Create feature branch
-3. Add tests
-4. Submit pull request
+## How to Add a New Tool
+
+1. Create `app/tools/your_tool.py`:
+
+```python
+from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
+
+class YourToolInput(BaseModel):
+    param: str = Field(description="What this param does")
+
+class YourTool(BaseTool):
+    name: str = "your_tool"
+    description: str = "What it does + when to use it"
+    args_schema: type[BaseModel] = YourToolInput
+
+    def _run(self, param: str) -> str:
+        return "result"
+
+    async def _arun(self, param: str) -> str:
+        return self._run(param)
+```
+
+2. Register in `app/bootstrap.py`:
+
+```python
+from app.tools.your_tool import YourTool
+registry.register(YourTool())
+```
+
+3. Done. Tool spec auto-injected into system prompt.
+
+## Testing
+
+```bash
+pytest
+```
+
+## Multi-Agent Readiness
+
+The architecture supports future multi-agent orchestration without modifying existing code:
+
+- `AgentRunner` is stateless + injectable (not a singleton)
+- `ToolRegistry` is per-agent (different agents = different tools)
+- `SessionStore` can be sliced per agent
+- All SSE events carry `source_agent` field (`"primary"` in v1)
+- Future `OrchestratorAgent` instantiates N `AgentRunner` objects
+
+## License
+
+MIT
